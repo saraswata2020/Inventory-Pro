@@ -3,6 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import useProductStore from "@/stores/product.store";
+import { productSchema, Product } from "@/schemas/product.shema";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -19,26 +21,10 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useState } from "react";
 
-const createProductSchema = z.object({
-  productSerialNumber: z
-    .string()
-    .min(1, { message: "Product Serial Number is required" }),
-  productName: z.string().min(1, { message: "Product Name is required" }),
-  companyName: z.string().min(1, { message: "Company Name is required" }),
-  category: z.string().min(1, { message: "Category is required" }),
-  stock: z
-    .number()
-    .positive()
-    .min(1, { message: "Stock must be a positive number" }),
-  price: z
-    .number()
-    .positive()
-    .min(1, { message: "Price must be a positive number" }),
-  wholesaleDiscount: z.number().positive().optional(),
-  normalDiscount: z.number().positive().optional(),
-  specialDiscount: z.number().positive().optional(),
-});
+// Define type for form data
+type FormData = z.infer<typeof productSchema>;
 
 type CategoryDropdownProps = {
   value: string;
@@ -95,8 +81,12 @@ function CategoryDropdown({ value, onChange }: CategoryDropdownProps) {
 }
 
 export default function CreateProductForm() {
-  const form = useForm<z.infer<typeof createProductSchema>>({
-    resolver: zodResolver(createProductSchema),
+  const { addProduct } = useProductStore(); // Access store action
+  const [alertMessage, setAlertMessage] = useState(""); // State to manage alert messages
+  const [isLoading, setIsLoading] = useState(false); // State to manage button loading state
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(productSchema),
     defaultValues: {
       productSerialNumber: "",
       productName: "",
@@ -110,8 +100,19 @@ export default function CreateProductForm() {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof createProductSchema>) => {
-    console.log(values); // Handle form submission
+  const onSubmit = async (values: FormData) => {
+    try {
+      setIsLoading(true); // Set loading state to true
+      await addProduct(values); // Call store action to add product
+      setAlertMessage("Product added successfully!"); // Set success message
+      form.reset(); // Reset the form after successful submission
+      setTimeout(() => setAlertMessage(""), 3000); // Clear alert after 3 seconds
+    } catch (error: any) {
+      console.error("Error adding product:", error);
+      setAlertMessage(error.message || "Failed to add product.");
+    } finally {
+      setIsLoading(false); // Set loading state back to false after API call finishes
+    }
   };
 
   return (
@@ -135,9 +136,7 @@ export default function CreateProductForm() {
                       {...field}
                     />
                   </FormControl>
-                  <FormMessage>
-                    {form.formState.errors.productSerialNumber?.message}
-                  </FormMessage>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -153,9 +152,7 @@ export default function CreateProductForm() {
                     <FormControl>
                       <Input placeholder="Enter Product Name" {...field} />
                     </FormControl>
-                    <FormMessage>
-                      {form.formState.errors.productName?.message}
-                    </FormMessage>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -169,15 +166,13 @@ export default function CreateProductForm() {
                     <FormControl>
                       <Input placeholder="Enter Company Name" {...field} />
                     </FormControl>
-                    <FormMessage>
-                      {form.formState.errors.companyName?.message}
-                    </FormMessage>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            {/* Category, Dropdown, and Add Category Button (Parallel) */}
+            {/* Category Dropdown with Add Category Button */}
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <FormField
@@ -192,14 +187,12 @@ export default function CreateProductForm() {
                           onChange={field.onChange}
                         />
                       </FormControl>
-                      <FormMessage>
-                        {form.formState.errors.category?.message}
-                      </FormMessage>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-              <Button variant="outline" className="whitespace-nowrap mt-8">
+              <Button variant="outline" className="mt-8 whitespace-nowrap">
                 Add Category
               </Button>
             </div>
@@ -217,11 +210,10 @@ export default function CreateProductForm() {
                         type="number"
                         placeholder="Enter Stock"
                         {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
                       />
                     </FormControl>
-                    <FormMessage>
-                      {form.formState.errors.stock?.message}
-                    </FormMessage>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -237,11 +229,10 @@ export default function CreateProductForm() {
                         type="number"
                         placeholder="Enter Price"
                         {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
                       />
                     </FormControl>
-                    <FormMessage>
-                      {form.formState.errors.price?.message}
-                    </FormMessage>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -262,9 +253,7 @@ export default function CreateProductForm() {
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage>
-                      {form.formState.errors.wholesaleDiscount?.message}
-                    </FormMessage>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -282,9 +271,7 @@ export default function CreateProductForm() {
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage>
-                      {form.formState.errors.normalDiscount?.message}
-                    </FormMessage>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -302,17 +289,28 @@ export default function CreateProductForm() {
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage>
-                      {form.formState.errors.specialDiscount?.message}
-                    </FormMessage>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            <Button type="submit">Create Product</Button>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isLoading} // Disable button when loading
+            >
+              {isLoading ? "Creating..." : "Create Product"} {/* Show loading text */}
+            </Button>
           </form>
         </Form>
+
+        {/* Alert Message */}
+        {alertMessage && (
+          <div className="mt-4 text-center text-green-600 font-medium">
+            {alertMessage}
+          </div>
+        )}
       </div>
     </div>
   );
